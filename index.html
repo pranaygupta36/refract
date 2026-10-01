@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="description"
+        content="REFRACT adapts frozen generative robot policies by steering out-of-distribution observations toward in-distribution policy embeddings.">
+  <meta name="keywords"
+        content="REFRACT, policy adaptation, robot learning, diffusion policy, representation learning, test-time adaptation">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Policy Adaptation by Steering Observation Embeddings</title>
+
+  <link href="https://fonts.googleapis.com/css?family=Google+Sans|Noto+Sans:400,600,700|Castoro"
+        rel="stylesheet">
+  <link rel="stylesheet" href="./static/css/bulma.min.css">
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1/css/academicons.min.css">
+  <link rel="stylesheet" href="./static/css/index.css?v=20261001-3">
+  <link rel="icon" href="./static/images/favicon.svg">
+  <script>
+    window.MathJax = {
+      loader: {load: ['[tex]/color']},
+      tex: {
+        packages: {'[+]': ['color']},
+        inlineMath: [['\\(', '\\)']],
+        displayMath: [['\\[', '\\]']]
+      }
+    };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+  <script defer src="./static/js/fontawesome.all.min.js"></script>
+  <script defer src="./static/js/libero-rollout-results.js?v=20260930"></script>
+  <script defer src="./static/js/index.js?v=20261001"></script>
+</head>
+<body>
+
+<nav class="navbar" role="navigation" aria-label="main navigation">
+  <div id="main-nav-menu" class="navbar-menu">
+    <div class="navbar-start nav-centered">
+      <a class="navbar-item section-nav-home" href="https://pranaygupta36.github.io" aria-label="Pranay Gupta home page">
+        <span class="icon"><i class="fas fa-home"></i></span>
+      </a>
+      <div class="navbar-section-links" aria-label="Page sections">
+        <a class="navbar-item section-nav-button" href="#overview">Overview</a>
+        <a class="navbar-item section-nav-button" href="#abstract">Abstract</a>
+        <a class="navbar-item section-nav-button" href="#method">Method</a>
+        <a class="navbar-item section-nav-button" href="#simulation">Simulation</a>
+        <a class="navbar-item section-nav-button" href="#multitask">Multi-Task</a>
+        <a class="navbar-item section-nav-button" href="#hardware">Hardware</a>
+      </div>
+      <div class="navbar-item has-dropdown is-hoverable">
+        <a class="navbar-link">More Research</a>
+        <div class="navbar-dropdown">
+          <a class="navbar-item" href="https://adapting-by-analogy.github.io/project-page/">
+            Adapting-By-Analogy
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<main>
+  <section class="hero publication-header" id="overview">
+    <div class="hero-body">
+      <div class="container is-max-desktop">
+        <div class="columns is-centered">
+          <div class="column has-text-centered">
+            <h1 class="title is-1 publication-title">
+              Policy Adaptation by Steering Observation Embeddings
+            </h1>
+            <div class="is-size-5 publication-authors">
+              <span class="author-block">
+                <a href="https://pranaygupta36.github.io">Pranay Gupta</a>,
+              </span>
+              <span class="author-block">
+                <a href="https://www.cs.cmu.edu/~abajcsy/">Andrea Bajcsy</a>,
+              </span>
+              <span class="author-block">
+                <a href="https://www.hennyadmoni.com/">Henny Admoni</a>
+              </span>
+            </div>
+            <div class="is-size-6 publication-authors affiliation">
+              <span class="author-block">The Robotics Institute, Carnegie Mellon University</span>
+            </div>
+            <div class="publication-links">
+              <span class="link-block">
+                <button type="button"
+                        class="button is-normal is-rounded is-dark placeholder-button"
+                        disabled>
+                  <span class="icon"><i class="ai ai-arxiv"></i></span>
+                  <span>arXiv <small>(Coming Soon)</small></span>
+                </button>
+              </span>
+              <span class="link-block">
+                <button type="button"
+                        class="button is-normal is-rounded is-dark placeholder-button"
+                        disabled>
+                  <span class="icon"><i class="fas fa-file-alt"></i></span>
+                  <span>Appendix <small>(Coming Soon)</small></span>
+                </button>
+              </span>
+              <span class="link-block">
+                <button type="button"
+                        class="button is-normal is-rounded is-dark placeholder-button"
+                        disabled>
+                  <span class="icon"><i class="fab fa-github"></i></span>
+                  <span>Code <small>(Coming Soon)</small></span>
+                </button>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="hero teaser">
+    <div class="container is-widescreen">
+      <div class="hero-body">
+        <figure class="paper-figure hero-figure">
+          <img src="./static/images/paper/front-fig-v3.png"
+               alt="REFRACT remaps an out-of-distribution observation embedding to an in-distribution embedding before the frozen policy predicts an action.">
+        </figure>
+        <h2 class="subtitle has-text-centered">
+          We propose <span class="refract">REFRACT</span>, a test-time policy adaptation method that
+          steers policy behavior under distribution shifts by remapping deployment-time observations
+          onto the policy's ID embeddings.
+        </h2>
+      </div>
+    </div>
+  </section>
+
+  <section class="section is-light" id="abstract">
+    <div class="container is-max-desktop">
+      <div class="columns is-centered has-text-centered">
+        <div class="column is-four-fifths">
+          <h2 class="title is-3">Abstract</h2>
+          <div class="content has-text-justified">
+            <p>
+              Generative robot policies can be adapted at inference time by steering action generation
+              with external guidance. However, action-space steering is fundamentally constrained by
+              the action distribution induced by input observations. When deployment-time observations
+              drift, this distribution may assign little probability mass to the desired behavior,
+              limiting the effectiveness of steering. We alternatively propose observation-space
+              steering, i.e., we steer generative robot policies by remapping out-of-distribution (OOD)
+              observations to in-distribution (ID) embeddings that induce the desired behaviors.
+              Concretely, we first learn to generate ID observation embeddings, conditioned on the
+              external guidance. Then, at inference-time, we map incoming observations to ID embeddings
+              via SDEdit-style diffusion editing. The base policy stays frozen throughout. We call this
+              approach <span class="refract">REFRACT</span>. Across two simulated tasks and one real-world
+              manipulation task, <span class="refract">REFRACT</span> recovers in-distribution policy
+              performance under visual distribution shifts, outperforming action-space steering.
+              Interestingly, <span class="refract">REFRACT</span> performs comparably to policies pre-trained
+              with access to the guidance, demonstrating that re-indexing within a frozen embedding space
+              can substitute for learning a new policy conditioned on the guidance. We conduct ablation
+              experiments to characterize how the choice of external guidance and the mechanism of
+              generating ID embeddings affects <span class="refract">REFRACT</span>. Finally, we show that
+              <span class="refract">REFRACT</span> scales to multi-task policies, recovering in-distribution
+              performance across diverse perturbations from Libero-Plus.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="method">
+    <div class="container is-widescreen">
+      <div class="columns is-centered">
+        <div class="column is-full-width">
+          <h2 class="title is-3 has-text-centered">Method</h2>
+          <figure class="paper-figure">
+            <img src="./static/images/paper/method-v2.png"
+                 alt="REFRACT method diagram showing forward noising of an OOD embedding followed by classifier-free guided denoising toward the in-distribution embedding manifold.">
+            <figcaption class="method-caption">
+              An overview of our method <span class="refract">REFRACT</span>. We first train a conditional
+              diffusion model \(p(z_{t'}^{\mathrm{id}} \mid c_t)\), to generate an ID embedding
+              \(z^{\mathrm{id}} \in \mathcal{Z}^{\mathrm{id}}\), given a \(c_t\). At test-time, given an OOD
+              observation \(o_t^{\mathrm{ood}}\), and external guidance about task-relevant features
+              (\(\mathcal{C}\)) (for e.g., point-goals), we first encode the observation into the policy's
+              embedding space \(z_t^{\mathrm{ood}}\), and extract the guidance signal \(c_t\). The OOD
+              embedding is then partially noised using the forward DDPM noising process. This partially
+              noised embedding is then mapped onto the ID embedding manifold using the conditional
+              diffusion model \(p(z_{t'}^{\mathrm{id}} \mid c_t)\) through classifier-free guidance.
+            </figcaption>
+          </figure>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section is-light" id="simulation">
+    <div class="container is-widescreen">
+      <h2 class="title is-3 has-text-centered">Simulation Experiments</h2>
+      <div class="content has-text-centered section-intro">
+        <p>
+          We evaluate on Stack and Square tasks from MimicGen under three OOD environments created by
+          switching object colors (stack), distractors(square), missing wrist-camera observations, and
+          novel viewpoints.
+        </p>
+      </div>
+      <div class="baselines-block">
+        <h3 class="title is-4 has-text-centered">Baselines</h3>
+        <div class="baseline-list">
+          <p>
+            <span class="baseline-name baseline-base">Base:</span>
+            <span class="baseline-placeholder">A vanilla single-task visuomotor diffusion policy</span>
+          </p>
+          <p>
+            <span class="baseline-name baseline-cbg">CBG:</span>
+            <span class="baseline-placeholder">Action-space steering baseline.</span>
+          </p>
+          <p>
+            <span class="baseline-name baseline-pretrain">Pre-train:</span>
+            <span class="baseline-placeholder">Diffusion policy pre-trained with task-relevant features</span>
+          </p>
+          <p>
+            <span class="baseline-name baseline-aba">ABA:</span>
+            <span class="baseline-placeholder">Steers observation embeddings using retrieval.</span>
+          </p>
+          <p>
+            <span class="baseline-name baseline-refract">REFRACT (Ours):</span>
+            <span class="baseline-placeholder">Steers observation embeddings using SDEdit by training a conditional diffusion model.</span>
+          </p>
+        </div>
+      </div>
+      <div class="result-subsection" id="simulation-quantitative">
+        <h3 class="title is-4 has-text-centered">Quantitative Results</h3>
+        <div class="columns is-variable is-3 quantitative-layout">
+          <div class="column is-5">
+            <figure class="paper-figure quantitative-figure">
+              <img src="./static/images/paper/simulation-results.png"
+                   alt="Success-rate comparison on Stack and Square showing REFRACT outperforming the base policy and action-space guidance.">
+            </figure>
+          </div>
+          <div class="column is-7">
+            <div class="content quantitative-highlights">
+              <ul>
+                <li><span class="baseline-inline baseline-refract">REFRACT</span> recovers ID performance under distribution shifts where <span class="baseline-inline baseline-base">Base</span> and <span class="baseline-inline baseline-cbg">CBG</span> fail.</li>
+                <li><span class="baseline-inline baseline-refract">REFRACT</span> performs comparably to <span class="baseline-inline baseline-pretrain">Pre-train</span> and can therefore serve as an alternative to costly retraining.</li>
+                <li><span class="baseline-inline baseline-refract">REFRACT</span> outperforms <span class="baseline-inline baseline-aba">ABA</span>; retrieval requires exact matches and a carefully calibrated similarity function.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="result-subsection" id="simulation-qualitative">
+        <h3 class="title is-4 has-text-centered">Qualitative Results</h3>
+        <div class="qualitative-controls">
+          <div class="selector-control">
+            <span class="selector-label">Task</span>
+            <div class="task-toggle" role="group" aria-label="Select simulation task">
+              <button type="button" class="task-toggle-button is-active" data-task="stack" aria-pressed="true">Stack</button>
+              <button type="button" class="task-toggle-button" data-task="square" aria-pressed="false">Square</button>
+            </div>
+          </div>
+          <div class="selector-control">
+            <span class="selector-label">OOD condition</span>
+            <div class="condition-toggle" id="qualitative-condition-toggle" role="group" aria-label="Select out-of-distribution condition"></div>
+          </div>
+        </div>
+        <p class="qualitative-condition-note" id="qualitative-condition-note" hidden>
+          The wrist-camera video is shown only for visualization; during evaluation, the policy receives a black image.
+        </p>
+        <div class="columns is-variable is-4 qualitative-video-grid">
+          <div class="column">
+            <article class="qualitative-video-card" data-method="base">
+              <h4 class="baseline-base">Base <span class="failure-label">(failure)</span></h4>
+              <div class="qualitative-video-frame">
+                <video autoplay controls loop muted playsinline preload="metadata" aria-label="Base policy rollout"></video>
+                <div class="qualitative-video-placeholder">
+                  <span>Video placeholder</span>
+                  <code class="placeholder-path"></code>
+                </div>
+              </div>
+            </article>
+          </div>
+          <div class="column">
+            <article class="qualitative-video-card" data-method="cbg">
+              <h4 class="baseline-cbg">CBG <span class="failure-label">(failure)</span></h4>
+              <div class="qualitative-video-frame">
+                <video autoplay controls loop muted playsinline preload="metadata" aria-label="CBG rollout"></video>
+                <div class="qualitative-video-placeholder">
+                  <span>Video placeholder</span>
+                  <code class="placeholder-path"></code>
+                </div>
+              </div>
+            </article>
+          </div>
+          <div class="column">
+            <article class="qualitative-video-card" data-method="refract">
+              <h4 class="baseline-refract">REFRACT</h4>
+              <div class="qualitative-video-frame">
+                <video autoplay controls loop muted playsinline preload="metadata" aria-label="REFRACT rollout"></video>
+                <div class="qualitative-video-placeholder">
+                  <span>Video placeholder</span>
+                  <code class="placeholder-path"></code>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="multitask">
+    <div class="container is-widescreen">
+      <h2 class="title is-3 has-text-centered">Multi-Task Vision-Language Diffusion Policy</h2>
+      <div class="content has-text-centered section-intro multitask-overview">
+        <p>
+          We evaluate REFRACT on the LIBERO-10 tasks under OOD conditions from the LIBERO-Plus benchmark.
+          The base policy is a pre-trained vision- and language-conditioned diffusion policy. For REFRACT,
+          we train a multi-task diffusion model to generate in-distribution vision-language embeddings
+          across all ten tasks, enabling steering within the multi-task base policy's entangled observation-embedding space.
+        </p>
+      </div>
+      <div class="result-subsection" id="multitask-quantitative">
+        <h3 class="title is-4 has-text-centered">Quantitative Results</h3>
+        <figure class="paper-figure multitask-quantitative-figure">
+          <img src="./static/images/paper/fig-exp3-w-line.png"
+               alt="LIBERO-Plus quantitative results comparing the frozen base policy and REFRACT across perturbation types on LIBERO-10.">
+        </figure>
+        <div class="content has-text-centered section-intro multitask-quantitative-summary">
+          <p>
+            A unified REFRACT model steers a frozen vision-language diffusion policy across all ten
+            LIBERO-10 tasks. Under LIBERO-Plus perturbations, the base policy's average success rate
+            drops by 0.42; REFRACT recovers to within approximately 0.08 of the in-distribution baseline.
+          </p>
+        </div>
+      </div>
+      <div class="result-subsection" id="multitask-qualitative">
+        <h3 class="title is-4 has-text-centered">Qualitative Results</h3>
+        <div class="libero-qualitative-controls">
+          <div class="selector-control libero-perturbation-control">
+            <span class="selector-label">Perturbation</span>
+            <div class="condition-toggle libero-condition-toggle" id="libero-condition-toggle" role="group" aria-label="Select LIBERO-Plus perturbation">
+              <button type="button" class="condition-toggle-button is-active" data-condition="background-textures" aria-pressed="true">Background textures</button>
+              <button type="button" class="condition-toggle-button" data-condition="camera-viewpoints" aria-pressed="false">Camera viewpoints</button>
+              <button type="button" class="condition-toggle-button" data-condition="language-instructions" aria-pressed="false">Language instructions</button>
+              <button type="button" class="condition-toggle-button" data-condition="light-conditions" aria-pressed="false">Light conditions</button>
+              <button type="button" class="condition-toggle-button" data-condition="object-layouts" aria-pressed="false">Object layouts</button>
+              <button type="button" class="condition-toggle-button" data-condition="robot-initial-states" aria-pressed="false">Robot initial states</button>
+              <button type="button" class="condition-toggle-button" data-condition="sensor-noise" aria-pressed="false">Sensor noise</button>
+            </div>
+          </div>
+          <div class="selector-control libero-task-control">
+            <label class="selector-label" for="libero-task-select">Task</label>
+            <div class="select">
+              <select id="libero-task-select" aria-label="Select LIBERO-10 task">
+                <option value="task-01">Task 1 — Turn on the stove and put the moka pot on it</option>
+                <option value="task-02">Task 2 — Put the black bowl in the bottom drawer and close it</option>
+                <option value="task-03">Task 3 — Put the yellow and white mug in the microwave and close it</option>
+                <option value="task-04">Task 4 — Put both moka pots on the stove</option>
+                <option value="task-05">Task 5 — Put the alphabet soup and cream cheese box in the basket</option>
+                <option value="task-06">Task 6 — Put the alphabet soup and tomato sauce in the basket</option>
+                <option value="task-07">Task 7 — Put the cream cheese box and butter in the basket</option>
+                <option value="task-08">Task 8 — Put the white mug on the left plate and the yellow and white mug on the right plate</option>
+                <option value="task-09">Task 9 — Put the white mug on the plate and the chocolate pudding to its right</option>
+                <option value="task-10">Task 10 — Place the book in the back compartment of the caddy</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="libero-rollout-results" id="libero-rollout-results">
+          <div class="libero-rollout-row" data-rollout-index="0">
+            <div class="columns is-variable is-4 qualitative-video-grid libero-video-grid">
+              <div class="column">
+                <article class="qualitative-video-card" data-video-role="base-id">
+                  <h4 class="baseline-base">Base (ID)</h4>
+                  <div class="qualitative-video-frame">
+                    <video autoplay controls loop muted playsinline preload="metadata" aria-label="In-distribution base-policy rollout"></video>
+                    <div class="qualitative-video-placeholder">
+                      <span>Video placeholder</span>
+                      <code class="placeholder-path"></code>
+                    </div>
+                  </div>
+                  <p class="rollout-status" aria-live="polite"></p>
+                </article>
+              </div>
+              <div class="column">
+                <article class="qualitative-video-card" data-video-role="base-ood">
+                  <h4 class="baseline-base">Base (OOD)</h4>
+                  <div class="qualitative-video-frame">
+                    <video autoplay controls loop muted playsinline preload="metadata" aria-label="Out-of-distribution base-policy rollout"></video>
+                    <div class="qualitative-video-placeholder">
+                      <span>Video placeholder</span>
+                      <code class="placeholder-path"></code>
+                    </div>
+                  </div>
+                  <p class="rollout-status" aria-live="polite"></p>
+                </article>
+              </div>
+              <div class="column">
+                <article class="qualitative-video-card" data-video-role="refract">
+                  <h4 class="baseline-refract">REFRACT</h4>
+                  <div class="qualitative-video-frame">
+                    <video autoplay controls loop muted playsinline preload="metadata" aria-label="REFRACT rollout"></video>
+                    <div class="qualitative-video-placeholder">
+                      <span>Video placeholder</span>
+                      <code class="placeholder-path"></code>
+                    </div>
+                  </div>
+                  <p class="rollout-status" aria-live="polite"></p>
+                </article>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="result-subsection failure-cases-subsection" id="failure-cases">
+        <h3 class="title is-4 has-text-centered">Failure Modes</h3>
+      <div class="failure-case-controls">
+        <div class="condition-toggle failure-case-toggle" id="failure-case-toggle" role="group" aria-label="Select failure mode">
+          <button type="button" class="condition-toggle-button is-active" data-failure-mode="robot-initial-states" aria-pressed="true">Robot Initial States</button>
+          <button type="button" class="condition-toggle-button" data-failure-mode="task-aliasing" aria-pressed="false">Task Aliasing (Tasks 5 &amp; 6)</button>
+        </div>
+      </div>
+      <div class="content has-text-centered section-intro failure-case-description">
+        <p id="failure-case-description">
+          REFRACT fails under novel initial states because success requires novel behavior outside
+          the base policy’s training distribution.
+        </p>
+      </div>
+      <div class="failure-rollout-results" id="failure-rollout-results">
+        <div class="failure-rollout-row" data-rollout-index="0">
+          <div class="columns is-variable is-4 qualitative-video-grid failure-video-grid">
+            <div class="column">
+              <article class="qualitative-video-card" data-video-role="base-id">
+                <h4 class="baseline-base">Base Policy (ID)</h4>
+                <div class="qualitative-video-frame">
+                  <video autoplay controls loop muted playsinline preload="metadata" aria-label="Successful in-distribution base-policy rollout"></video>
+                  <div class="qualitative-video-placeholder">
+                    <span>Video placeholder</span>
+                    <code class="placeholder-path"></code>
+                  </div>
+                </div>
+                <p class="rollout-status is-success">Success</p>
+              </article>
+            </div>
+            <div class="column">
+              <article class="qualitative-video-card" data-video-role="refract">
+                <h4 class="baseline-refract">REFRACT (OOD Failure)</h4>
+                <div class="qualitative-video-frame">
+                  <video autoplay controls loop muted playsinline preload="metadata" aria-label="Failed out-of-distribution REFRACT rollout"></video>
+                  <div class="qualitative-video-placeholder">
+                    <span>Video placeholder</span>
+                    <code class="placeholder-path"></code>
+                  </div>
+                </div>
+                <p class="rollout-status is-failure">Failure</p>
+              </article>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    </div>
+  </section>
+
+  <section class="section is-light" id="hardware">
+    <div class="container is-widescreen">
+      <h2 class="title is-3 has-text-centered">Hardware Experiment: Real World Block Stacking</h2>
+      <div class="content has-text-centered section-intro">
+        <p>
+          We evaluate REFRACT on a real-world robot manipulation task using a Franka Research 3
+          manipulator on a block-stacking task, where the robot must pick up a small green block
+          and place it on the red block.
+        </p>
+      </div>
+      <div class="result-subsection" id="hardware-quantitative">
+        <h3 class="title is-4 has-text-centered">Quantitative Results</h3>
+        <figure class="paper-figure hardware-quantitative-figure">
+          <img src="./static/images/paper/real_world_block_stacking_quantitative.png"
+               alt="Hardware block-stacking success rates for the base policy, CBG, and REFRACT across perturbations and task subgoals.">
+        </figure>
+        <div class="content has-text-centered section-intro hardware-quantitative-summary">
+          <p>
+            Subgoal A is a successful grasp, subgoal B is selecting the right behavior mode
+            (left or right), and subgoal C is stacking. REFRACT is able to recover the base
+            policy’s in-distribution performance on the final goal. It outperforms CBG on the
+            “No Wrist” perturbation and matches on the others.
+          </p>
+        </div>
+      </div>
+      <div class="result-subsection" id="hardware-qualitative">
+        <h3 class="title is-4 has-text-centered">Qualitative Results</h3>
+        <div class="libero-qualitative-controls hardware-qualitative-controls">
+          <div class="selector-control hardware-perturbation-control">
+            <span class="selector-label">OOD Perturbation</span>
+            <div class="condition-toggle hardware-condition-toggle" role="group" aria-label="Hardware out-of-distribution perturbation">
+              <button type="button" class="condition-toggle-button is-active" aria-pressed="true">No Wrist</button>
+            </div>
+          </div>
+        </div>
+        <div class="columns is-variable is-4 qualitative-video-grid hardware-video-grid">
+          <div class="column">
+            <article class="qualitative-video-card">
+              <h4 class="baseline-base">Base (ID)</h4>
+              <div class="qualitative-video-frame">
+                <video autoplay controls loop muted playsinline preload="metadata" aria-label="In-distribution hardware base-policy rollout">
+                  <source src="./static/videos/qualitative/hardware/no-wrist/base-id.mp4" type="video/mp4">
+                </video>
+              </div>
+              <p class="rollout-status is-success">Success</p>
+            </article>
+          </div>
+          <div class="column">
+            <article class="qualitative-video-card">
+              <h4 class="baseline-base">Base (OOD)</h4>
+              <div class="qualitative-video-frame">
+                <video autoplay controls loop muted playsinline preload="metadata" aria-label="No-wrist hardware base-policy rollout">
+                  <source src="./static/videos/qualitative/hardware/no-wrist/base-ood.mp4" type="video/mp4">
+                </video>
+              </div>
+              <p class="rollout-status is-failure">Failure</p>
+            </article>
+          </div>
+          <div class="column">
+            <article class="qualitative-video-card">
+              <h4 class="baseline-refract">REFRACT</h4>
+              <div class="qualitative-video-frame">
+                <video autoplay controls loop muted playsinline preload="metadata" aria-label="No-wrist hardware REFRACT rollout">
+                  <source src="./static/videos/qualitative/hardware/no-wrist/refract.mp4" type="video/mp4">
+                </video>
+              </div>
+              <p class="rollout-status is-success">Success</p>
+            </article>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="footer">
+  <div class="container">
+    <div class="content has-text-centered footer-links">
+      <a class="icon-link" href="https://github.com/pranaygupta36" aria-label="Pranay Gupta on GitHub">
+        <i class="fab fa-github"></i>
+      </a>
+    </div>
+    <div class="columns is-centered">
+      <div class="column is-8">
+        <div class="content has-text-centered footer-note">
+          <p>
+            Website template adapted from
+            <a href="https://github.com/nerfies/nerfies.github.io">Nerfies</a>
+            under a Creative Commons Attribution-ShareAlike 4.0 International License.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
